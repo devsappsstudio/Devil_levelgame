@@ -29,7 +29,11 @@ function tone(f,d,type='square',v=.06,sl=0,dl=0){if(!audioEnabled||playablesPaus
 function noise(d,v=.15,fc=1200){if(!audioEnabled||playablesPaused||mute||(!set.fx&&!isMus))return;const a=ac();if(!a)return;try{const n=Math.floor(a.sampleRate*d),b=a.createBuffer(1,n,a.sampleRate),c=b.getChannelData(0);for(let i=0;i<n;i++)c[i]=(Math.random()*2-1)*(1-i/n);const s=a.createBufferSource(),f=a.createBiquadFilter(),g=a.createGain();s.buffer=b;f.type='lowpass';f.frequency.value=fc;g.gain.value=v;s.connect(f);f.connect(g);g.connect(a.destination);s.start()}catch(e){}}
 const SFX={jump:()=>tone(330,.16,'square',.04,380),land:()=>noise(.08,.08,500),die:()=>{noise(.5,.3,1800);tone(220,.5,'sawtooth',.1,-180);tone(60,.6,'sine',.2,-30)},pop:()=>{tone(900,.1,'sawtooth',.06,-600);noise(.1,.1,3000)},slam:()=>{noise(.6,.35,350);tone(70,.5,'sine',.25,-40)},crumble:()=>noise(.35,.12,700),bounce:()=>tone(200,.3,'sine',.1,900),whoosh:()=>{noise(.35,.1,2500);tone(400,.3,'triangle',.05,600)},win:()=>[523,659,784,1047,1319].forEach((f,i)=>tone(f,.2,'triangle',.08,0,i*.1)),click:()=>tone(700,.06,'square',.04),bump:()=>{tone(150,.1,'square',.07);noise(.08,.1,900)}};
 const MUS=[[55,55,65,49],[49,49,58,55],[62,62,73,55],[41,41,49,46],[58,58,69,52]];let stp=0;
-setInterval(()=>{if(playablesPaused||!AC||!audioEnabled||mute||!set.mu||state!='play')return;isMus=true;setTimeout(()=>{isMus=false},0);const b=MUS[LV[lv].th];if(stp%2==0)tone(b[(stp>>3)%4]*2,.3,'triangle',.05);if(stp%4==0)tone(110,.1,'sine',.1,-80);if(stp%8==6)tone(b[(stp>>3)%4]*8,.12,'square',.012);stp++},230);
+const musicTick=()=>{if(playablesPaused||!AC||!audioEnabled||mute||!set.mu||state!='play')return;isMus=true;setTimeout(()=>{isMus=false},0);const b=MUS[LV[lv].th];if(stp%2==0)tone(b[(stp>>3)%4]*2,.3,'triangle',.05);if(stp%4==0)tone(110,.1,'sine',.1,-80);if(stp%8==6)tone(b[(stp>>3)%4]*8,.12,'square',.012);stp++};
+let musicTimer=0;
+function startMusicTimer(){if(!musicTimer)musicTimer=setInterval(musicTick,230)}
+function stopMusicTimer(){if(musicTimer){clearInterval(musicTimer);musicTimer=0}}
+startMusicTimer();
 
 // ---------- Themes / levels ----------
 const TH=[{n:'Dungeon',sky:['#0d0a1f','#241046','#3b1a5e'],far:'#1a1233',mid:'#2a1d4d',t:['#6a58a8','#3f3170','#241a45'],ac:'#a98bff',lt:'#ff9a3c',pt:'#ffb86b',pn:'ember',gl:'#6a3bff'},
@@ -273,8 +277,8 @@ function setupPlayableLifecycle(){
   try{
     audioEnabled=ytgame.system.isAudioEnabled();
     ytgame.system.onAudioEnabledChange(enabled=>{audioEnabled=!!enabled;if(!audioEnabled&&AC)AC.suspend().catch(()=>{});else if(audioEnabled&&!playablesPaused&&AC)AC.resume().catch(()=>{});});
-    ytgame.system.onPause(()=>{if(playablesPaused)return;playablesPaused=true;keys.left=keys.right=keys.jump=0;jb=0;if(AC)AC.suspend().catch(()=>{});saveP();if(rafId)cancelAnimationFrame(rafId);rafId=0;});
-    ytgame.system.onResume(()=>{if(!playablesPaused)return;playablesPaused=false;last=0;if(audioEnabled&&AC)AC.resume().catch(()=>{});if(!rafId)rafId=requestAnimationFrame(loop);});
+    ytgame.system.onPause(()=>{if(playablesPaused)return;playablesPaused=true;stopMusicTimer();keys.left=keys.right=keys.jump=0;jb=0;if(AC)AC.suspend().catch(()=>{});saveP();if(rafId)cancelAnimationFrame(rafId);rafId=0;});
+    ytgame.system.onResume(()=>{if(!playablesPaused)return;playablesPaused=false;last=0;startMusicTimer();if(audioEnabled&&AC)AC.resume().catch(()=>{});if(!rafId)rafId=requestAnimationFrame(loop);});
   }catch(e){try{ytgame.health?.logError?.()}catch(_){}}
 }
 function pill(x,y,w,h,s,c,fn,sz=20){UI.push({x,y,w,h,fn});ctx.fillStyle=c;rr(ctx,x,y,w,h,h/2);ctx.fill();ctx.strokeStyle='#ffffff66';ctx.lineWidth=2;ctx.stroke();txt(s,x+w/2,y+h/2+sz*.35,sz)}
@@ -318,13 +322,17 @@ function loop(t){
   rafId=0;
   if(playablesPaused)return;
   const dt=Math.min(.033,(t-last)/1000||0);last=t;update(dt);draw();
-  if(inPlayables()&&!firstFrameSent){firstFrameSent=true;try{ytgame.game.firstFrameReady()}catch(e){}}
+  if(inPlayables()&&!firstFrameSent){
+    try{ytgame.game.firstFrameReady();firstFrameSent=true;}catch(e){}
+  }
+  if(inPlayables()&&firstFrameSent&&!gameReadySent){
+    try{ytgame.game.gameReady();gameReadySent=true;}catch(e){}
+  }
   if(!rafId)rafId=requestAnimationFrame(loop);
 }
 setupPlayableLifecycle();
 (async()=>{
   await loadPlayableSave();
-  if(inPlayables()&&!gameReadySent){try{ytgame.game.gameReady();gameReadySent=true}catch(e){}}
   if(!rafId)rafId=requestAnimationFrame(loop);
 })();
 </script></body></html>
